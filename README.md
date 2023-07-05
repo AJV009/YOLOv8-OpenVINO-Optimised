@@ -10,8 +10,10 @@ This is a demo of YOLOv8 object detection model optimized with OpenVINO Toolkit.
     ```bash
     python demo.py
     ```
+    You can also run the notebook version of the demo by running cells in `demo.ipynb` file.
 
 ## Demo
 ![demo2](demoImages/demo2.png)
 ![demo1](demoImages/demo1.png)
-
+![demo1](demoImages/demo3.png)
+![demo1](demoImages/demo4.png)
