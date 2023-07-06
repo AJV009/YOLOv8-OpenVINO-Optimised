@@ -1,11 +1,16 @@
-import threading
-import random
 import cv2
 import numpy as np
-from openvino.runtime import Model
+import os
+import threading
 import time
 import torch
-from typing import Dict, Tuple
+import urllib.parse
+from typing import Dict, List, NamedTuple, Optional, Tuple
+from os import PathLike
+from pathlib import Path
+
+from IPython.display import HTML, Image, display
+from openvino.runtime import Core, Model, get_version
 from ultralytics.yolo.utils import ops
 from ultralytics.yolo.utils.plotting import colors
 
@@ -268,7 +273,7 @@ def draw_results(results:Dict, source_image:np.ndarray, label_map:Dict):
     masks = results.get("segment")
     h, w = source_image.shape[:2]
     for idx, (*xyxy, conf, lbl) in enumerate(boxes):
-        label = f'{label_map[str(int(lbl))]} {conf:.2f}'
+        label = f'{label_map[int(lbl)]} {conf:.2f}'
         mask = masks[idx] if masks is not None else None
         source_image = plot_one_box(xyxy, source_image, mask=mask, label=label, color=colors(int(lbl)), line_thickness=1)
     return source_image
@@ -289,3 +294,126 @@ def detect_without_preprocess(image:np.ndarray, model:Model):
     result = model(input_tensor)[output_layer]
     detections = postprocess(result, input_hw, image)
     return detections
+
+def load_image(path: str) -> np.ndarray:
+    """
+    Loads an image from `path` and returns it as BGR numpy array. `path`
+    should point to an image file, either a local filename or a url. The image is
+    not stored to the filesystem. Use the `download_file` function to download and
+    store an image.
+
+    :param path: Local path name or URL to image.
+    :return: image as BGR numpy array
+    """
+    import cv2
+    import requests
+
+    if path.startswith("http"):
+        # Set User-Agent to Mozilla because some websites block
+        # requests with User-Agent Python
+        response = requests.get(path, headers={"User-Agent": "Mozilla/5.0"})
+        array = np.asarray(bytearray(response.content), dtype="uint8")
+        image = cv2.imdecode(array, -1)  # Loads the image as BGR
+    else:
+        image = cv2.imread(path)
+    return image
+
+
+def download_file(
+    url: PathLike,
+    filename: PathLike = None,
+    directory: PathLike = None,
+    show_progress: bool = True,
+    silent: bool = False,
+    timeout: int = 10,
+) -> PathLike:
+    """
+    Download a file from a url and save it to the local filesystem. The file is saved to the
+    current directory by default, or to `directory` if specified. If a filename is not given,
+    the filename of the URL will be used.
+
+    :param url: URL that points to the file to download
+    :param filename: Name of the local file to save. Should point to the name of the file only,
+                     not the full path. If None the filename from the url will be used
+    :param directory: Directory to save the file to. Will be created if it doesn't exist
+                      If None the file will be saved to the current working directory
+    :param show_progress: If True, show an TQDM ProgressBar
+    :param silent: If True, do not print a message if the file already exists
+    :param timeout: Number of seconds before cancelling the connection attempt
+    :return: path to downloaded file
+    """
+    from tqdm.notebook import tqdm_notebook
+    import requests
+
+    filename = filename or Path(urllib.parse.urlparse(url).path).name
+    chunk_size = 16384  # make chunks bigger so that not too many updates are triggered for Jupyter front-end
+
+    filename = Path(filename)
+    if len(filename.parts) > 1:
+        raise ValueError(
+            "`filename` should refer to the name of the file, excluding the directory. "
+            "Use the `directory` parameter to specify a target directory for the downloaded file."
+        )
+
+    # create the directory if it does not exist, and add the directory to the filename
+    if directory is not None:
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        filename = directory / Path(filename)
+
+    try:
+        response = requests.get(url=url, 
+                                headers={"User-agent": "Mozilla/5.0"}, 
+                                stream=True)
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as error:  # For error associated with not-200 codes. Will output something like: "404 Client Error: Not Found for url: {url}"
+        raise Exception(error) from None
+    except requests.exceptions.Timeout:
+        raise Exception(
+                "Connection timed out. If you access the internet through a proxy server, please "
+                "make sure the proxy is set in the shell from where you launched Jupyter."
+        ) from None
+    except requests.exceptions.RequestException as error:
+        raise Exception(f"File downloading failed with error: {error}") from None
+
+    # download the file if it does not exist, or if it exists with an incorrect file size
+    filesize = int(response.headers.get("Content-length", 0))
+    if not filename.exists() or (os.stat(filename).st_size != filesize):
+
+        with tqdm_notebook(
+            total=filesize,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            desc=str(filename),
+            disable=not show_progress,
+        ) as progress_bar:
+
+            with open(filename, "wb") as file_object:
+                for chunk in response.iter_content(chunk_size):
+                    file_object.write(chunk)
+                    progress_bar.update(len(chunk))
+                    progress_bar.refresh()
+    else:
+        if not silent:
+            print(f"'{filename}' already exists.")
+
+    response.close()
+
+    return filename.resolve()
+
+
+def download_ir_model(model_xml_url: str, destination_folder: PathLike = None) -> PathLike:
+    """
+    Download IR model from `model_xml_url`. Downloads model xml and bin file; the weights file is
+    assumed to exist at the same location and name as model_xml_url with a ".bin" extension.
+
+    :param model_xml_url: URL to model xml file to download
+    :param destination_folder: Directory where downloaded model xml and bin are saved. If None, model
+                               files are saved to the current directory
+    :return: path to downloaded xml model file
+    """
+    model_bin_url = model_xml_url[:-4] + ".bin"
+    model_xml_path = download_file(model_xml_url, directory=destination_folder, show_progress=False)
+    download_file(model_bin_url, directory=destination_folder)
+    return model_xml_path

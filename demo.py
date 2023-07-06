@@ -3,7 +3,6 @@ import cv2
 import numpy as np
 import json
 from openvino.runtime import Core
-from ultralytics import YOLO
 import time
 from utils import VideoPlayer, detect_without_preprocess, draw_results
 
@@ -12,6 +11,7 @@ yolov8n_with_preprocess_model = core.read_model('models/yolov8n_openvino_int8_mo
 
 with open('label_map.json', 'r') as f:
     label_map = json.load(f)
+    label_map = {int(k): v for k, v in label_map.items()}
 
 def run_object_detection(source=0, flip=False, use_popup=False, skip_first_frames=0, model="None", device="CPU"):
     player = None
