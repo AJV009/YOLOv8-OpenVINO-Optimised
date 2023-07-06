@@ -5,12 +5,11 @@ import threading
 import time
 import torch
 import urllib.parse
-from typing import Dict, List, NamedTuple, Optional, Tuple
+from typing import Dict, Tuple
 from os import PathLike
 from pathlib import Path
 
-from IPython.display import HTML, Image, display
-from openvino.runtime import Core, Model, get_version
+from openvino.runtime import Model
 from ultralytics.yolo.utils import ops
 from ultralytics.yolo.utils.plotting import colors
 
