@@ -6,17 +6,16 @@ This is a demo of YOLOv8 object detection model optimized with OpenVINO Toolkit.
     ```bash
     pip install -r requirements.txt
     ```
-2. Create the Optimized Model:
-    Run the cells at convert.ipynb to convert the model to OpenVINO format.
+2. Create the optimized model by running the notebook cells at `convert.ipynb` to convert the model to OpenVINO format. **(IMPORTANT)**
 2. Run the demo:
     ```bash
     python demo.py
     ```
-    You can also run the notebook version of the demo by running cells in `demo.ipynb` file.
+    **OR** You can run the notebook version of the demo from `demo.ipynb` file.
     
 _Note: Demo won't work without creating the optimized model._
 
-## Demo
+## Demo (CPU)
 ![demo2](demoImages/demo2.png)
 ![demo1](demoImages/demo1.png)
 ![demo1](demoImages/demo3.png)
